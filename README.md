@@ -371,8 +371,9 @@ cryptographic operations should use a dedicated cryptographic library.
 
 ## License
 
-This project is provided as a personal/open-source utility.
-Add the project's chosen license here.
+This project is licensed under the MIT License.
+
+See the [LICENSE](LICENSE) file for the full license text.
 
 ## Status
 
