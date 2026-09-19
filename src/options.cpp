@@ -1,664 +1,461 @@
 #include "options.hpp"
 
-#include "charset.hpp"
-
-#include <cctype>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
 #include <stdexcept>
 #include <string>
 
-[[noreturn]]
-static void error(
-    const std::string& message)
-{
-    throw std::runtime_error(message);
-}
+namespace {
 
-static bool is_unsigned_integer(
-    const std::string& value)
-{
-    if (value.empty()) {
-        return false;
-    }
-
-    for (char c : value) {
-
-        if (!std::isdigit(
-                static_cast<unsigned char>(c)
-            )) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-static uint64_t parse_positive(
+std::size_t parse_size(
     const std::string& value,
-    const std::string& name)
+    const char* name)
 {
-    if (!is_unsigned_integer(value)) {
-        error(
-            name +
-            " must be a positive number"
-        );
+    if (value.empty() || value[0] == '-') {
+        throw std::invalid_argument(
+            std::string("invalid ") + name);
     }
 
-    try {
+    std::size_t position = 0;
 
-        const unsigned long long result =
-            std::stoull(value);
+    const unsigned long long parsed =
+        std::stoull(value, &position);
 
-        if (result == 0) {
-            error(
-                name +
-                " must be greater than zero"
-            );
-        }
-
-        return static_cast<uint64_t>(
-            result
-        );
+    if (position != value.size()) {
+        throw std::invalid_argument(
+            std::string("invalid ") + name);
     }
-    catch (...) {
-        error(
-            name +
-            " is too large"
-        );
-    }
-}
-
-static int64_t parse_integer(
-    const std::string& value,
-    const std::string& name)
-{
-    if (value.empty()) {
-        error(
-            name +
-            " must be an integer"
-        );
-    }
-
-    size_t start = 0;
 
     if (
-        value[0] == '-' ||
-        value[0] == '+'
+        parsed >
+        static_cast<unsigned long long>(
+            std::numeric_limits<std::size_t>::max())
     ) {
-        start = 1;
+        throw std::invalid_argument(
+            std::string(name) + " is too large");
     }
 
-    if (start == value.size()) {
-        error(
-            name +
-            " must be an integer"
-        );
-    }
-
-    for (size_t i = start;
-         i < value.size();
-         ++i) {
-
-        if (!std::isdigit(
-                static_cast<unsigned char>(
-                    value[i]
-                )
-            )) {
-
-            error(
-                name +
-                " must be an integer"
-            );
-        }
-    }
-
-    try {
-        return std::stoll(value);
-    }
-    catch (...) {
-        error(
-            name +
-            " is out of range"
-        );
-    }
+    return static_cast<std::size_t>(parsed);
 }
 
-void usage()
+std::uint64_t parse_uint64(
+    const std::string& value,
+    const char* name)
 {
-    std::cout << R"(mykeygen - random password/key generator
+    if (value.empty() || value[0] == '-') {
+        throw std::invalid_argument(
+            std::string("invalid ") + name);
+    }
 
-Usage:
-  mykeygen [options]
+    std::size_t position = 0;
 
-CHARACTER GENERATOR
-  -s, --set <set>             Character set:
-                                alnum
-                                num
-                                upper
-                                lower
-                                hex
-                                base64
-                                <custom>
+    const unsigned long long parsed =
+        std::stoull(value, &position);
 
-  -l, --length <length>       Length of each generated value
+    if (position != value.size()) {
+        throw std::invalid_argument(
+            std::string("invalid ") + name);
+    }
 
-  -c, --count <count>         Number of outputs
-
-  --sep <separator>           Build multiple values into one line
-
-NUMBER GENERATOR
-  --range <start> <end>       Random number in inclusive range
-
-  -c, --count <count>         Number of random numbers
-
-FILE WORD GENERATOR
-  -f, --file <path>           Word list file
-
-  -c, --count <count>         Number of words
-
-  --sep <separator>           Separator between words
-
-BYTE GENERATOR
-  --bytes <count>             Generate random bytes
-
-  --hex                       Encode bytes as hexadecimal
-
-  --base64                    Encode bytes as Base64
-
-  -c, --count <count>         Number of byte outputs
-
-OUTPUT
-  -o <file>                   Create/overwrite file
-
-  -oa <file>                  Create/append to file
-
-UTILITY
-  api                         Show command/API tree
-
-  help
-  -h, --help                  Show this help
-
-CUSTOM CHARACTER SETS
-  Custom sets support ranges:
-
-    A-Z
-    a-z
-    0-9
-
-  Ranges can be combined with literal characters:
-
-    A-Za-z0-9
-    A-F0-9
-    A-Za-z0-9!@#$%
-    abc123
-
-EXAMPLES
-  mykeygen
-
-  mykeygen -s alnum -l 32
-
-  mykeygen -s hex -l 64 -c 3
-
-  mykeygen -s 'A-Za-z0-9!@#$%' -l 32
-
-  mykeygen -s 'A-F0-9' -l 64
-
-  mykeygen -s 'abc123' -l 20
-
-  mykeygen -s alnum -l 8 -c 4 --sep -
-
-  mykeygen -s hex -l 4 -c 8 --sep :
-
-  mykeygen --range 1 100
-
-  mykeygen --range 1000 9999 -c 10
-
-  mykeygen -f words.txt -c 4 --sep -
-
-  mykeygen -f words.txt -c 6 --sep _
-
-  mykeygen -s hex -l 64 -c 10 -o keys.txt
-
-  mykeygen -f words.txt -c 10 --sep - -oa passwords.txt
-
-  mykeygen --bytes 32 --hex
-
-  mykeygen --bytes 32 --base64
-
-  mykeygen --bytes 32 --hex -c 10
-)";
+    return static_cast<std::uint64_t>(parsed);
 }
 
-void api()
+bool is_option(const char* value)
 {
-    std::cout << R"(mykeygen
-│
-├── generator
-│   │
-│   ├── character
-│   │   ├── -s, --set <set>
-│   │   │   ├── alnum
-│   │   │   ├── num
-│   │   │   ├── upper
-│   │   │   ├── lower
-│   │   │   ├── hex
-│   │   │   ├── base64
-│   │   │   └── <custom>
-│   │   │       ├── literal
-│   │   │       └── ranges
-│   │   │
-│   │   ├── -l, --length <length>
-│   │   ├── -c, --count <count>
-│   │   └── --sep <separator>
-│   │
-│   ├── number
-│   │   ├── --range <start> <end>
-│   │   └── -c, --count <count>
-│   │
-│   ├── file
-│   │   ├── -f, --file <path>
-│   │   ├── -c, --count <count>
-│   │   └── --sep <separator>
-│   │
-│   └── bytes
-│       ├── --bytes <count>
-│       ├── --hex
-│       ├── --base64
-│       └── -c, --count <count>
-│
-├── output
-│   ├── stdout
-│   │   └── default
-│   ├── -o <file>
-│   │   └── overwrite/create
-│   └── -oa <file>
-│       └── append/create
-│
-├── utility
-│   ├── api
-│   └── help
-│
-└── custom-set
-    ├── A-Z
-    ├── a-z
-    ├── 0-9
-    ├── literal characters
-    └── mixed ranges + literals
-)";
+    return value != nullptr && value[0] == '-';
 }
 
-Options parse_arguments(
+void require_argument(
+    int index,
     int argc,
-    char* argv[])
+    const char* option)
+{
+    if (index + 1 >= argc) {
+        throw std::invalid_argument(
+            std::string("missing argument for ") + option);
+    }
+}
+
+} // namespace
+
+Options parse_options(
+    int argc,
+    char** argv)
 {
     Options options;
 
-    for (int i = 1;
-         i < argc;
-         ++i) {
+    if (argc == 1) {
+        return options;
+    }
 
-        const std::string arg =
-            argv[i];
+    for (int i = 1; i < argc; ++i) {
+        const std::string arg = argv[i];
 
-        if (
-            arg == "-h" ||
-            arg == "--help" ||
-            arg == "help"
-        ) {
-            usage();
-            std::exit(0);
+        if (arg == "help" || arg == "-h" || arg == "--help") {
+            options.help = true;
+            continue;
         }
 
         if (arg == "api") {
-            api();
-            std::exit(0);
-        }
-
-        if (
-            arg == "-s" ||
-            arg == "--set"
-        ) {
-
-            if (
-                options.mode !=
-                Mode::String
-            ) {
-                error(
-                    "--set cannot be combined "
-                    "with another generator"
-                );
-            }
-
-            if (++i >= argc) {
-                error(
-                    arg +
-                    " requires a character set"
-                );
-            }
-
-            options.set =
-                argv[i];
-
+            options.api = true;
             continue;
         }
 
-        if (
-            arg == "-l" ||
-            arg == "--length"
-        ) {
+        if (arg == "-s" || arg == "--set") {
+            require_argument(i, argc, argv[i]);
+            options.mode = Mode::Character;
+            options.charset = argv[++i];
+            continue;
+        }
 
-            if (
-                options.mode !=
-                Mode::String
-            ) {
-                error(
-                    "--length cannot be used "
-                    "with another generator"
-                );
-            }
-
-            if (++i >= argc) {
-                error(
-                    arg +
-                    " requires a number"
-                );
-            }
-
+        if (arg == "-l" || arg == "--length") {
+            require_argument(i, argc, argv[i]);
             options.length =
-                parse_positive(
-                    argv[i],
-                    "length"
-                );
-
+                parse_size(argv[++i], "length");
             continue;
         }
 
-        if (
-            arg == "-c" ||
-            arg == "--count"
-        ) {
-
-            if (++i >= argc) {
-                error(
-                    arg +
-                    " requires a number"
-                );
-            }
-
+        if (arg == "-c" || arg == "--count") {
+            require_argument(i, argc, argv[i]);
             options.count =
-                parse_positive(
-                    argv[i],
-                    "count"
-                );
-
+                parse_size(argv[++i], "count");
             continue;
         }
 
         if (arg == "--sep") {
-
-            if (++i >= argc) {
-                error(
-                    "--sep requires a separator"
-                );
-            }
-
-            options.separator =
-                argv[i];
-
+            require_argument(i, argc, argv[i]);
+            options.separator = argv[++i];
             continue;
         }
 
         if (arg == "--range") {
-
-            if (
-                options.mode !=
-                Mode::String
-            ) {
-                error(
-                    "--range cannot be combined "
-                    "with another generator"
-                );
-            }
-
             if (i + 2 >= argc) {
-                error(
-                    "--range requires "
-                    "<start> <end>"
-                );
+                throw std::invalid_argument(
+                    "--range requires <start> <end>");
             }
 
-            options.range_start =
-                parse_integer(
-                    argv[++i],
-                    "range start"
-                );
+            options.mode = Mode::Range;
 
-            options.range_end =
-                parse_integer(
-                    argv[++i],
-                    "range end"
-                );
+            options.range_min =
+                parse_uint64(argv[++i], "range start");
 
-            options.mode =
-                Mode::Range;
+            options.range_max =
+                parse_uint64(argv[++i], "range end");
 
             continue;
         }
 
-        if (
-            arg == "-f" ||
-            arg == "--file"
-        ) {
+        if (arg == "-f" || arg == "--file") {
+            require_argument(i, argc, argv[i]);
 
-            if (
-                options.mode !=
-                Mode::String
-            ) {
-                error(
-                    "--file cannot be combined "
-                    "with another generator"
-                );
-            }
-
-            if (++i >= argc) {
-                error(
-                    arg +
-                    " requires a file path"
-                );
-            }
-
-            options.word_file =
-                argv[i];
-
-            options.mode =
-                Mode::File;
+            options.mode = Mode::File;
+            options.file = argv[++i];
 
             continue;
         }
 
         if (arg == "--bytes") {
+            require_argument(i, argc, argv[i]);
 
-            if (
-                options.mode !=
-                Mode::String
-            ) {
-                error(
-                    "--bytes cannot be combined "
-                    "with another generator"
-                );
-            }
-
-            if (++i >= argc) {
-                error(
-                    "--bytes requires a number"
-                );
-            }
-
+            options.mode = Mode::Bytes;
             options.byte_count =
-                parse_positive(
-                    argv[i],
-                    "bytes"
-                );
-
-            options.mode =
-                Mode::Bytes;
+                parse_size(argv[++i], "byte count");
 
             continue;
         }
 
         if (arg == "--hex") {
-
-            if (
-                options.mode !=
-                Mode::Bytes
-            ) {
-                error(
-                    "--hex requires --bytes"
-                );
+            if (options.mode == Mode::Bytes) {
+                options.byte_encoding =
+                    ByteEncoding::Hex;
+            } else {
+                options.mode = Mode::Character;
+                options.charset = "hex";
             }
-
-            options.byte_encoding =
-                ByteEncoding::Hex;
 
             continue;
         }
 
         if (arg == "--base64") {
-
-            if (
-                options.mode !=
-                Mode::Bytes
-            ) {
-                error(
-                    "--base64 requires --bytes"
-                );
+            if (options.mode == Mode::Bytes) {
+                options.byte_encoding =
+                    ByteEncoding::Base64;
+            } else {
+                options.mode = Mode::Character;
+                options.charset = "base64";
             }
-
-            options.byte_encoding =
-                ByteEncoding::Base64;
 
             continue;
         }
 
         if (arg == "-o") {
-
-            if (++i >= argc) {
-                error(
-                    "-o requires a file path"
-                );
-            }
-
-            options.output_file =
-                argv[i];
+            require_argument(i, argc, argv[i]);
 
             options.output_mode =
                 OutputMode::Overwrite;
+
+            options.output_file = argv[++i];
 
             continue;
         }
 
         if (arg == "-oa") {
-
-            if (++i >= argc) {
-                error(
-                    "-oa requires a file path"
-                );
-            }
-
-            options.output_file =
-                argv[i];
+            require_argument(i, argc, argv[i]);
 
             options.output_mode =
                 OutputMode::Append;
 
+            options.output_file = argv[++i];
+
             continue;
         }
 
-        error(
-            "unknown option: " + arg
-        );
+        if (is_option(argv[i])) {
+            throw std::invalid_argument(
+                "unknown option: " + arg);
+        }
+
+        throw std::invalid_argument(
+            "unknown argument: " + arg);
     }
 
     return options;
 }
 
-void validate(
+void validate_options(
     const Options& options)
 {
-    if (
-        options.mode ==
-        Mode::Range
-    ) {
-
-        if (!options.separator.empty()) {
-            error(
-                "--sep cannot be used "
-                "with --range"
-            );
-        }
-
-        if (
-            options.range_start >
-            options.range_end
-        ) {
-            error(
-                "range start must be less "
-                "than or equal to end"
-            );
-        }
-
+    if (options.help || options.api) {
         return;
     }
 
-    if (
-        options.mode ==
-        Mode::File
-    ) {
-
-        if (options.length != 16) {
-            error(
-                "--length cannot be used "
-                "with --file"
-            );
-        }
-
-        if (options.set != "alnum") {
-            error(
-                "--set cannot be used "
-                "with --file"
-            );
-        }
-
-        return;
+    if (options.count == 0) {
+        throw std::invalid_argument(
+            "count must be greater than zero");
     }
 
-    if (
-        options.mode ==
-        Mode::Bytes
-    ) {
+    if (options.output_mode != OutputMode::Stdout &&
+        options.output_file.empty()) {
+        throw std::invalid_argument(
+            "output file is required");
+    }
 
-        if (
-            options.byte_count >
-            static_cast<uint64_t>(
-                std::numeric_limits<size_t>::max()
-            )
-        ) {
-            error(
-                "byte count is too large"
-            );
+    switch (options.mode) {
+    case Mode::Character:
+        if (options.length == 0) {
+            throw std::invalid_argument(
+                "length must be greater than zero");
+        }
+        break;
+
+    case Mode::Range:
+        if (options.range_min > options.range_max) {
+            throw std::invalid_argument(
+                "range start must not exceed range end");
+        }
+        break;
+
+    case Mode::File:
+        if (options.file.empty()) {
+            throw std::invalid_argument(
+                "word list file is required");
+        }
+        break;
+
+    case Mode::Bytes:
+        if (options.byte_count == 0) {
+            throw std::invalid_argument(
+                "byte count must be greater than zero");
         }
 
         if (!options.separator.empty()) {
-            error(
-                "--sep cannot be used "
-                "with --bytes"
-            );
+            throw std::invalid_argument(
+                "--sep cannot be used with --bytes");
         }
 
-        return;
+        break;
     }
+}
 
-    resolve_set(options.set);
+void print_help()
+{
+    std::cout
+        << "mykeygen - secure random value generator\n"
+        << "\n"
+        << "Usage:\n"
+        << "  mykeygen [options]\n"
+        << "\n"
+
+        << "CHARACTER GENERATOR\n"
+        << "  -s, --set <set>             Character set:\n"
+        << "                                alnum\n"
+        << "                                num\n"
+        << "                                upper\n"
+        << "                                lower\n"
+        << "                                hex\n"
+        << "                                base64\n"
+        << "                                <custom>\n"
+        << "\n"
+        << "  -l, --length <length>       Length of each generated value\n"
+        << "\n"
+        << "  -c, --count <count>         Number of outputs\n"
+        << "\n"
+        << "  --sep <separator>           Build multiple values into one line\n"
+        << "\n"
+
+        << "NUMBER GENERATOR\n"
+        << "  --range <start> <end>       Random number in inclusive range\n"
+        << "\n"
+        << "  -c, --count <count>         Number of random numbers\n"
+        << "\n"
+
+        << "FILE WORD GENERATOR\n"
+        << "  -f, --file <path>           Word list file\n"
+        << "\n"
+        << "  -c, --count <count>         Number of words\n"
+        << "\n"
+        << "  --sep <separator>           Separator between words\n"
+        << "\n"
+
+        << "BYTE GENERATOR\n"
+        << "  --bytes <count>             Generate random bytes\n"
+        << "\n"
+        << "  --hex                       Encode bytes as hexadecimal\n"
+        << "\n"
+        << "  --base64                    Encode bytes as Base64\n"
+        << "\n"
+        << "  -c, --count <count>         Number of byte outputs\n"
+        << "\n"
+
+        << "OUTPUT\n"
+        << "  -o <file>                   Create/overwrite file\n"
+        << "\n"
+        << "  -oa <file>                  Create/append to file\n"
+        << "\n"
+
+        << "UTILITY\n"
+        << "  api                         Show command/API tree\n"
+        << "\n"
+        << "  help\n"
+        << "  -h, --help                  Show this help\n"
+        << "\n"
+
+        << "CUSTOM CHARACTER SETS\n"
+        << "  Custom sets support ranges:\n"
+        << "\n"
+        << "    A-Z\n"
+        << "    a-z\n"
+        << "    0-9\n"
+        << "\n"
+        << "  Ranges can be combined with literal characters:\n"
+        << "\n"
+        << "    A-Za-z0-9\n"
+        << "    A-F0-9\n"
+        << "    A-Za-z0-9!@#$%\n"
+        << "    abc123\n"
+        << "\n"
+
+        << "EXAMPLES\n"
+        << "  mykeygen\n"
+        << "\n"
+        << "  mykeygen -s alnum -l 32\n"
+        << "\n"
+        << "  mykeygen -s hex -l 64 -c 3\n"
+        << "\n"
+        << "  mykeygen -s 'A-Za-z0-9!@#$%' -l 32\n"
+        << "\n"
+        << "  mykeygen -s 'A-F0-9' -l 64\n"
+        << "\n"
+        << "  mykeygen -s 'abc123' -l 20\n"
+        << "\n"
+        << "  mykeygen -s alnum -l 8 -c 4 --sep -\n"
+        << "\n"
+        << "  mykeygen -s hex -l 4 -c 8 --sep :\n"
+        << "\n"
+        << "  mykeygen --range 1 100\n"
+        << "\n"
+        << "  mykeygen --range 1000 9999 -c 10\n"
+        << "\n"
+        << "  mykeygen -f words.txt -c 4 --sep -\n"
+        << "\n"
+        << "  mykeygen -f words.txt -c 6 --sep _\n"
+        << "\n"
+        << "  mykeygen -s hex -l 64 -c 10 -o keys.txt\n"
+        << "\n"
+        << "  mykeygen -f words.txt -c 10 --sep - -oa passwords.txt\n"
+        << "\n"
+        << "  mykeygen --bytes 32 --hex\n"
+        << "\n"
+        << "  mykeygen --bytes 32 --base64\n"
+        << "\n"
+        << "  mykeygen --bytes 32 --hex -c 10\n";
+}
+
+void print_api()
+{
+    std::cout
+        << "mykeygen\n"
+        << "│\n"
+        << "├── generator\n"
+        << "│   │\n"
+        << "│   ├── character\n"
+        << "│   │   ├── -s, --set <set>\n"
+        << "│   │   │   ├── alnum\n"
+        << "│   │   │   ├── num\n"
+        << "│   │   │   ├── upper\n"
+        << "│   │   │   ├── lower\n"
+        << "│   │   │   ├── hex\n"
+        << "│   │   │   ├── base64\n"
+        << "│   │   │   └── <custom>\n"
+        << "│   │   │       ├── literal\n"
+        << "│   │   │       └── ranges\n"
+        << "│   │   │\n"
+        << "│   │   ├── -l, --length <length>\n"
+        << "│   │   ├── -c, --count <count>\n"
+        << "│   │   └── --sep <separator>\n"
+        << "│   │\n"
+        << "│   ├── number\n"
+        << "│   │   ├── --range <start> <end>\n"
+        << "│   │   └── -c, --count <count>\n"
+        << "│   │\n"
+        << "│   ├── file\n"
+        << "│   │   ├── -f, --file <path>\n"
+        << "│   │   ├── -c, --count <count>\n"
+        << "│   │   └── --sep <separator>\n"
+        << "│   │\n"
+        << "│   └── bytes\n"
+        << "│       ├── --bytes <count>\n"
+        << "│       ├── --hex\n"
+        << "│       ├── --base64\n"
+        << "│       └── -c, --count <count>\n"
+        << "│\n"
+        << "├── library\n"
+        << "│   └── <mykeygen/mykeygen.hpp>\n"
+        << "│       ├── bytes()\n"
+        << "│       ├── hex()\n"
+        << "│       ├── base64()\n"
+        << "│       ├── range()\n"
+        << "│       ├── string()\n"
+        << "│       ├── alnum()\n"
+        << "│       ├── numeric()\n"
+        << "│       ├── upper()\n"
+        << "│       ├── lower()\n"
+        << "│       ├── hexadecimal()\n"
+        << "│       └── base64_string()\n"
+        << "│\n"
+        << "├── output\n"
+        << "│   ├── stdout\n"
+        << "│   │   └── default\n"
+        << "│   ├── -o <file>\n"
+        << "│   │   └── overwrite/create\n"
+        << "│   └── -oa <file>\n"
+        << "│       └── append/create\n"
+        << "│\n"
+        << "└── custom-set\n"
+        << "    ├── A-Z\n"
+        << "    ├── a-z\n"
+        << "    ├── 0-9\n"
+        << "    ├── literal characters\n"
+        << "    └── mixed ranges + literals\n";
 }

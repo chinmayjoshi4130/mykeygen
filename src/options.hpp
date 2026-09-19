@@ -1,19 +1,16 @@
 #pragma once
 
+#include "output.hpp"
+
+#include <cstddef>
 #include <cstdint>
 #include <string>
 
 enum class Mode {
-    String,
+    Character,
     Range,
     File,
     Bytes
-};
-
-enum class OutputMode {
-    Stdout,
-    Overwrite,
-    Append
 };
 
 enum class ByteEncoding {
@@ -22,38 +19,36 @@ enum class ByteEncoding {
 };
 
 struct Options {
-    Mode mode = Mode::String;
+    Mode mode = Mode::Character;
 
-    std::string set = "alnum";
+    std::string charset = "alnum";
+    std::size_t length = 32;
+    std::size_t count = 1;
 
-    uint64_t length = 16;
-    uint64_t count = 1;
+    std::uint64_t range_min = 0;
+    std::uint64_t range_max = 0;
+
+    std::string file;
 
     std::string separator;
 
-    int64_t range_start = 0;
-    int64_t range_end = 0;
+    std::size_t byte_count = 0;
+    ByteEncoding byte_encoding = ByteEncoding::Hex;
 
-    std::string word_file;
-
-    uint64_t byte_count = 0;
-    ByteEncoding byte_encoding =
-        ByteEncoding::Hex;
-
+    OutputMode output_mode = OutputMode::Stdout;
     std::string output_file;
-    OutputMode output_mode =
-        OutputMode::Stdout;
+
+    bool help = false;
+    bool api = false;
 };
 
-Options parse_arguments(
+Options parse_options(
     int argc,
-    char* argv[]
-);
+    char** argv);
 
-void validate(
-    const Options& options
-);
+void validate_options(
+    const Options& options);
 
-void usage();
+void print_help();
 
-void api();
+void print_api();

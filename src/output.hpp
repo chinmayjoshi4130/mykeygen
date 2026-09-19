@@ -1,19 +1,27 @@
 #pragma once
 
-#include "options.hpp"
+#include <string>
+#include <vector>
 
-#include <fstream>
-#include <ostream>
+enum class OutputMode {
+    Stdout,
+    Overwrite,
+    Append
+};
 
 class Output {
 public:
-    explicit Output(
-        const Options& options
-    );
+    Output(
+        OutputMode mode,
+        const std::string& path = "");
 
-    std::ostream& stream();
+    void write(const std::string& value);
+
+    void write_lines(
+        const std::vector<std::string>& values,
+        const std::string& separator = "");
 
 private:
-    std::ofstream file_;
-    std::ostream* stream_ = nullptr;
+    OutputMode mode_;
+    std::string path_;
 };

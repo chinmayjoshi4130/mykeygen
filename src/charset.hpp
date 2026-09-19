@@ -3,9 +3,7 @@
 #include <string>
 
 std::string expand_charset(
-    const std::string& expression
-);
+    const std::string& specification);
 
-std::string resolve_set(
-    const std::string& set
-);
+std::string resolve_charset(
+    const std::string& specification);

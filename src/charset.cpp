@@ -1,144 +1,92 @@
 #include "charset.hpp"
 
-#include <string>
 #include <stdexcept>
+#include <string>
 
-[[noreturn]]
-static void charset_error(
-    const std::string& message)
-{
-    throw std::runtime_error(message);
-}
+namespace {
 
-std::string expand_charset(
-    const std::string& expression)
+void append_range(
+    std::string& result,
+    char first,
+    char last)
 {
-    if (expression.empty()) {
-        charset_error(
-            "character set cannot be empty"
-        );
+    if (first > last) {
+        throw std::invalid_argument(
+            "invalid character range");
     }
 
+    for (unsigned int c =
+             static_cast<unsigned char>(first);
+         c <= static_cast<unsigned char>(last);
+         ++c) {
+        result.push_back(static_cast<char>(c));
+    }
+}
+
+} // namespace
+
+std::string expand_charset(
+    const std::string& specification)
+{
     std::string result;
 
-    for (size_t i = 0;
-         i < expression.size();
-         ++i) {
+    for (std::size_t i = 0; i < specification.size();) {
+        if (
+            i + 2 < specification.size() &&
+            specification[i + 1] == '-'
+        ) {
+            append_range(
+                result,
+                specification[i],
+                specification[i + 2]);
 
-        const char current =
-            expression[i];
-
-        /*
-         * Detect:
-         *
-         * A-Z
-         * a-z
-         * 0-9
-         *
-         * Invalid backwards ranges are treated
-         * as literal characters.
-         */
-        if (i + 2 < expression.size() &&
-            expression[i + 1] == '-') {
-
-            const char start =
-                expression[i];
-
-            const char end =
-                expression[i + 2];
-
-            if (start <= end) {
-
-                for (unsigned int c =
-                         static_cast<unsigned char>(
-                             start
-                         );
-                     c <=
-                         static_cast<unsigned char>(
-                             end
-                         );
-                     ++c) {
-
-                    result.push_back(
-                        static_cast<char>(c)
-                    );
-                }
-
-                i += 2;
-                continue;
-            }
+            i += 3;
+        } else {
+            result.push_back(specification[i]);
+            ++i;
         }
-
-        result.push_back(current);
     }
 
     if (result.empty()) {
-        charset_error(
-            "character set cannot be empty"
-        );
+        throw std::invalid_argument(
+            "character set cannot be empty");
     }
 
-    /*
-     * Remove duplicates.
-     */
-    std::string unique;
-
-    for (char c : result) {
-
-        if (unique.find(c) ==
-            std::string::npos) {
-
-            unique.push_back(c);
-        }
-    }
-
-    return unique;
+    return result;
 }
 
-std::string resolve_set(
-    const std::string& set)
+std::string resolve_charset(
+    const std::string& specification)
 {
-    if (set == "alnum") {
-        return expand_charset(
-            "A-Za-z0-9"
-        );
+    if (specification == "alnum") {
+        return
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz"
+            "0123456789";
     }
 
-    if (set == "num") {
-        return expand_charset(
-            "0-9"
-        );
+    if (specification == "num") {
+        return "0123456789";
     }
 
-    if (set == "upper") {
-        return expand_charset(
-            "A-Z"
-        );
+    if (specification == "upper") {
+        return "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     }
 
-    if (set == "lower") {
-        return expand_charset(
-            "a-z"
-        );
+    if (specification == "lower") {
+        return "abcdefghijklmnopqrstuvwxyz";
     }
 
-    if (set == "hex") {
-        return expand_charset(
-            "0-9a-f"
-        );
+    if (specification == "hex") {
+        return "0123456789abcdef";
     }
 
-    /*
-     * Base64 alphabet.
-     *
-     * '=' is padding, not a random alphabet
-     * character, so it is intentionally omitted.
-     */
-    if (set == "base64") {
-        return expand_charset(
-            "A-Za-z0-9+/"
-        );
+    if (specification == "base64") {
+        return
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "abcdefghijklmnopqrstuvwxyz"
+            "0123456789+/";
     }
 
-    return expand_charset(set);
+    return expand_charset(specification);
 }

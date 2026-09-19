@@ -1,7 +1,7 @@
-# Build artifacts
+# Build directory
 build/
 
-# Compiled binary
+# Root-level binaries
 mykeygen
 
 # Object files
@@ -11,14 +11,14 @@ mykeygen
 # Dependency files
 *.d
 
+# Editor files
+.vscode/
+.idea/
+
 # Temporary files
 *.tmp
 *.swp
 *.swo
-
-# Editor / IDE files
-.vscode/
-.idea/
 
 # OS files
 .DS_Store

@@ -11,27 +11,18 @@ public:
     RandomSource(const RandomSource&) = delete;
     RandomSource& operator=(const RandomSource&) = delete;
 
-    uint8_t byte();
+    std::uint8_t byte();
 
-    void bytes(void* buffer, size_t size);
+    void bytes(
+        void* destination,
+        std::size_t count);
 
-    uint64_t uint64();
+    std::uint64_t uint64();
 
-    uint64_t range(
-        uint64_t min,
-        uint64_t max
-    );
-
-    int64_t signed_range(
-        int64_t min,
-        int64_t max
-    );
+    std::uint64_t range(
+        std::uint64_t min,
+        std::uint64_t max);
 
 private:
-    int fd_ = -1;
-
-    void read_exact(
-        void* buffer,
-        size_t size
-    );
+    int fd_;
 };
