@@ -1,0 +1,25 @@
+# Build artifacts
+build/
+
+# Compiled binary
+mykeygen
+
+# Object files
+*.o
+*.obj
+
+# Dependency files
+*.d
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# Editor / IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
