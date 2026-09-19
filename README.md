@@ -115,7 +115,7 @@ mykeygen can also be used as a C++17 library.
 Include the public header:
 
 ```cpp
-#include &lt;mykeygen/mykeygen.hpp&gt;
+#include <mykeygen/mykeygen.hpp>
 ```
 
 Generate a password:
