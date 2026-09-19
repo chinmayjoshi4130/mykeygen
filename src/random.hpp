@@ -3,10 +3,18 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace mykeygen_internal {
+
+void secure_random_bytes(
+    void* destination,
+    std::size_t count);
+
+} // namespace mykeygen_internal
+
 class RandomSource {
 public:
-    RandomSource();
-    ~RandomSource();
+    RandomSource() = default;
+    ~RandomSource() = default;
 
     RandomSource(const RandomSource&) = delete;
     RandomSource& operator=(const RandomSource&) = delete;
@@ -22,7 +30,4 @@ public:
     std::uint64_t range(
         std::uint64_t min,
         std::uint64_t max);
-
-private:
-    int fd_;
 };
